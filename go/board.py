@@ -317,8 +317,8 @@ class Board(Array):
         return len(self.get_liberties(x, y))
 
     def isgameend(self):
-        for width in range(self._width):
-            for height in range(self._height):
+        for width in range(1, self._width+1):
+            for height in range(1, self._height+1):
                 try:
                     self.move(width, height)
                     self.undo()

@@ -1,12 +1,17 @@
 from __future__ import print_function
 
+from keras import backend as K
 import random
-import gym
 import numpy as np
+from go_env import GoEnv
 from collections import deque
 from keras.models import Sequential
-from keras.layers import Dense
+from keras.layers import Dense, Conv2D, GlobalAveragePooling2D
 from keras.optimizers import Adam
+
+
+def sigmoid7(x):
+    return (K.sigmoid(x) * 7)+1
 
 
 class DQNAgent:
@@ -23,8 +28,10 @@ class DQNAgent:
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
         model = Sequential()
-        model.add(Dense(24, input_dim=self.state_size, activation='tanh'))  # input dimension = #states
-        model.add(Dense(self.action_size, activation='linear'))  # output nodes = #action
+        model.add(Conv2D(32, 3, input_shape=self.state_size, activation='relu'))  # input dimension = #states
+        model.add(Conv2D(32, 3, activation='relu'))
+        model.add(GlobalAveragePooling2D())
+        model.add(Dense(self.action_size, activation=sigmoid7))  # output nodes = #action
         model.compile(loss='mse', optimizer=Adam(lr=1e-2, decay=1e-5))
 
         print(model.summary())
@@ -32,9 +39,9 @@ class DQNAgent:
 
     def act(self, state):
         if np.random.rand() <= self.epsilon:  # another method to explore/exploit
-            return random.randrange(self.action_size)
+            return random.randrange(1, self.action_size), random.randrange(1, self.action_size)
         act_values = self.model.predict(state)
-        return np.argmax(act_values[0])
+        return np.argmax(act_values[0]), np.argmax(act_values[1])
 
     def remember(self, state, action, reward, next_state, done):  # done==True if this is the ending move
         self.memory.append((state, action, reward, next_state, done))
@@ -55,9 +62,9 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    env = gym.make('CartPole-v0')
-    state_size = env.observation_space.shape[0]
-    action_size = env.action_space.n
+    env = GoEnv(7)
+    state_size = env.state_size
+    action_size = env.action_size
     print("{} actions, {}-dim state".format(action_size, state_size))
 
     agent = DQNAgent(state_size, action_size)
@@ -66,7 +73,7 @@ if __name__ == "__main__":
     emax = 5000
     for e in range(emax):
         state = env.reset()
-        state = np.reshape(state, [1, state_size])
+        state = np.reshape(state, (1, state_size[0], state_size[1], 2))
 
         success = False
         for time in range(200):
@@ -74,7 +81,7 @@ if __name__ == "__main__":
             action = agent.act(state)
             next_state, reward, done, _ = env.step(action)
             # reward = reward if not done else -10
-            next_state = np.reshape(next_state, [1, state_size])
+            next_state = np.reshape(next_state, (1, state_size[0], state_size[1], 2))
             agent.remember(state, action, reward, next_state, done)
             state = next_state
             if done:

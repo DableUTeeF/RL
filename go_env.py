@@ -2,10 +2,10 @@
 Go environment using gym.
 """
 import gym
-from gym import spaces, logger
+from gym import logger
 from gym.utils import seeding
 import numpy as np
-from go import Board, BoardError, View, clear, getch
+from go import Board
 
 
 class GoEnv(gym.Env):
@@ -18,12 +18,23 @@ class GoEnv(gym.Env):
         self.board = Board(size)
         self.size = size
         self.np_random = None
-
+        self.action_size = 2
+        self.state_size = (size, size, 2)
         self.seed()
 
         self.viewer = None
-        self.state = self.board._state()
         self.steps_beyond_done = None
+
+    def __getstate__(self):
+        state = np.zeros((self.size, self.size, 2))
+        for width in range(self.size):
+            for height in range(self.size):
+                if self.board._state[0][width][height] == self.board.WHITE:
+                    state[width, height, 0] = 1
+                elif self.board._state[0][width][height] == self.board.BLACK:
+                    state[width, height, 1] = 1
+                # elif
+        return state
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -50,10 +61,11 @@ class GoEnv(gym.Env):
             self.steps_beyond_done += 1
             reward = 0.0
 
-        return np.array(self.state), reward, done, {}
+        return np.array(self.__getstate__()), reward, done, {}
 
     def reset(self):
         self.board = Board(self.size)
+        return self.__getstate__()
 
     def render(self, mode='human'):
         pass
