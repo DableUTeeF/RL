@@ -100,7 +100,7 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    board_size = 5
+    board_size = 19
     bb = Board(board_size)
     bb._turn = bb.BLACK
     env = GoEnv(player_color='black',
@@ -152,13 +152,13 @@ if __name__ == "__main__":
             state = next_state
             if done:
                 bb = Board(board_size)
-                env.render()
                 print("episode: {}/{}, action: ({},{}), e: {:.2}, illegal: {}"
                       .format(e+1, emax,
                               board_size - int(action/board_size),
                               chr(action-(int(action/board_size)*board_size)+1+64),
                               agent.epsilon,
                               isillegal))
+                env.render()
                 break
 
         if len(agent.memory) > batch_size:
