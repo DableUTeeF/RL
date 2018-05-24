@@ -21,7 +21,7 @@ class DQNAgent:
         self.memory = deque(maxlen=1000)
         self.gamma = 0.95  # discount rate
         self.epsilon = 1.0  # exploration rate
-        self.epsilon_min = 0.01
+        self.epsilon_min = 0.1
         self.epsilon_decay = 0.995
         self.model = self._build_model()
 
@@ -70,7 +70,7 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    board_size = 19
+    board_size = 9
     env = GoEnv(player_color='black',
                 opponent='pachi:uct:_2400',
                 observation_type='image3c',
@@ -93,7 +93,7 @@ if __name__ == "__main__":
             # env.render()
             action = agent.act(state)
             # actions = np.argmax(action)+1
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done, _, isillegal = env.step(action)
             # reward = reward if not done else -10
             next_state = np.rollaxis(next_state, 0, 3)
             next_state = np.array([next_state])
@@ -101,11 +101,12 @@ if __name__ == "__main__":
             state = next_state
             if done:
                 env.render()
-                print("episode: {}/{}, action: ({},{}), e: {:.2}"
+                print("episode: {}/{}, action: ({},{}), e: {:.2}, illegal: {}"
                       .format(e, emax,
-                              19 - int(action/19),
-                              chr(action-(int(action/19)*19)+1+64),
-                              agent.epsilon))  # score == time
+                              board_size - int(action/board_size),
+                              chr(action-(int(action/board_size)*board_size)+1+64),
+                              agent.epsilon,
+                              isillegal))  # score == time
                 if time > 195:
                     success = True
                 break

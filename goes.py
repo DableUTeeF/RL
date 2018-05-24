@@ -236,7 +236,7 @@ class GoEnv(gym.Env):
             elif self.illegal_move_mode == 'lose':
                 # Automatic loss on illegal move
                 self.done = True
-                return self.state.board.encode(), -1., True, {'state': self.state}
+                return self.state.board.encode(), -1., True, {'state': self.state}, 1.0
             else:
                 raise error.Error('Unsupported illegal move action: {}'.format(self.illegal_move_mode))
 
@@ -249,12 +249,12 @@ class GoEnv(gym.Env):
             # If the opponent resigns, then the agent wins
             if opponent_resigned:
                 self.done = True
-                return self.state.board.encode(), 1., True, {'state': self.state}
+                return self.state.board.encode(), 1., True, {'state': self.state}, .0
 
         # Reward: if nonterminal, then the reward is 0
         if not self.state.board.is_terminal:
             self.done = False
-            return self.state.board.encode(), 0., False, {'state': self.state}
+            return self.state.board.encode(), 0., False, {'state': self.state}, .0
 
         # We're in a terminal state. Reward is 1 if won, -1 if lost
         assert self.state.board.is_terminal
@@ -264,7 +264,7 @@ class GoEnv(gym.Env):
         player_wins = (white_wins and self.player_color == pachi_py.WHITE) or (
                 black_wins and self.player_color == pachi_py.BLACK)
         reward = 1. if player_wins else -1. if (white_wins or black_wins) else 0.
-        return self.state.board.encode(), reward, True, {'state': self.state}
+        return self.state.board.encode(), reward, True, {'state': self.state}, .0
 
     def exec_opponent_play(self, curr_state, prev_state, prev_action):
         assert curr_state.color != self.player_color
