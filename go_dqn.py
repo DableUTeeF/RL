@@ -28,6 +28,7 @@ class DQNAgent:
         self.epsilon_decay = 0.995
         self.model = self._build_model()
         self.iteration = 0
+        self.f = 0
 
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
@@ -47,9 +48,9 @@ class DQNAgent:
         model.add(Conv2D(64, 3, padding='same'))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Conv2D(64, 1, activation='sigmoid', padding='same'))  # output nodes = #action
+        model.add(Conv2D(64, 1, activation='relu', padding='same'))  # output nodes = #action
         model.add(Reshape((self.action_size*64,)))
-        model.add(Dense(self.action_size+2, activation='sigmoid'))
+        model.add(Dense(self.action_size+1, activation='sigmoid'))
         model.compile(loss='binary_crossentropy',
                       optimizer=SGD(lr=1e-2, decay=1e-5, momentum=0.9))
 
@@ -67,7 +68,9 @@ class DQNAgent:
                     target = random.randrange(self.action_size)
                     x, y = int(target/board_size), (target-(int(target/board_size)*board_size))
                     if state[0][2][x][y] == 1:
-                        return target
+                        if not (self.f == 0 and x == y == int(board_size/2)):
+                            self.f = 1
+                            return target
                     elif np.sum(state[0][2]) == 0:
                         print('No valid move left')
                         return self.action_size
@@ -97,7 +100,7 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    board_size = 7
+    board_size = 5
     bb = Board(board_size)
     bb._turn = bb.BLACK
     env = GoEnv(player_color='black',
@@ -114,6 +117,7 @@ if __name__ == "__main__":
     emax = 5000
     for e in range(emax):
         state = env.reset()
+        agent.f = 0
         # state = np.rollaxis(state, 0, 3)
         state = np.array([state])
         success = False
@@ -154,7 +158,7 @@ if __name__ == "__main__":
                               board_size - int(action/board_size),
                               chr(action-(int(action/board_size)*board_size)+1+64),
                               agent.epsilon,
-                              illegal))  # score == time
+                              isillegal))
                 break
 
         if len(agent.memory) > batch_size:
