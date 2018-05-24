@@ -1,24 +1,20 @@
 from __future__ import print_function
-
+from go.board import Board
 from keras import backend as K
 import random
 import numpy as np
 from goes import GoEnv
 from collections import deque
 from keras.models import Sequential
-from keras.layers import Dense, Conv2D, Flatten, BatchNormalization, Activation
+from keras.layers import Dense, Conv2D, Flatten, BatchNormalization, Activation, Reshape
 from keras.optimizers import Adam, SGD
-
+import pachi_py
 K.set_image_data_format('channels_first')
 
 # todo: 1). Point out where is legal move on explore stage
 # todo: 2). Should I use single Conv2D with large kernel
 # todo: 3). What to do with 3rd plane(available move) that contains some illegal move
 # todo: 4). I haven't use trained model as opponent yet
-
-
-def sigmoid1to7(x):
-    return int((K.sigmoid(x) * 6)+1)
 
 
 class DQNAgent:
@@ -36,11 +32,24 @@ class DQNAgent:
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
         model = Sequential()
-        model.add(Conv2D(512, 5, input_shape=self.state_size))  # input dimension = #states
+        model.add(Conv2D(64, 3, input_shape=self.state_size, padding='same'))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Flatten())
-        model.add(Dense(self.action_size, activation='sigmoid'))  # output nodes = #action
+        model.add(Conv2D(64, 3, padding='same'))  # input dimension = #states
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+        model.add(Conv2D(64, 3, padding='same'))  # input dimension = #states
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+        model.add(Conv2D(64, 3, padding='same'))  # input dimension = #states
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+        model.add(Conv2D(64, 3, padding='same'))  # input dimension = #states
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+        model.add(Conv2D(64, 1, activation='sigmoid', padding='same'))  # output nodes = #action
+        model.add(Reshape((self.action_size*64,)))
+        model.add(Dense(self.action_size+2, activation='sigmoid'))
         model.compile(loss='binary_crossentropy',
                       optimizer=SGD(lr=1e-2, decay=1e-5, momentum=0.9))
 
@@ -49,15 +58,21 @@ class DQNAgent:
 
     def act(self, state):
         # if np.random.rand() <= self.epsilon:
-        #     return random.randrange(1, self.action_size)
+        #     return random.randrange(self.action_size)
+        i = 0
         if np.random.rand() <= self.epsilon:
             if np.random.rand() <= 1:
                 board_size = int(self.action_size**0.5)
                 while True:
-                    target = random.randrange(1, self.action_size)
+                    target = random.randrange(self.action_size)
                     x, y = int(target/board_size), (target-(int(target/board_size)*board_size))
                     if state[0][2][x][y] == 1:
                         return target
+                    elif np.sum(state[0][2]) == 0:
+                        print('No valid move left')
+                        return self.action_size
+
+                    i += 1
             else:
                 return random.randrange(1, self.action_size)
         act_values = self.model.predict(state)
@@ -83,6 +98,8 @@ class DQNAgent:
 
 if __name__ == "__main__":
     board_size = 7
+    bb = Board(board_size)
+    bb._turn = bb.BLACK
     env = GoEnv(player_color='black',
                 opponent='pachi:uct:_2400',
                 observation_type='image3c',
@@ -100,8 +117,26 @@ if __name__ == "__main__":
         # state = np.rollaxis(state, 0, 3)
         state = np.array([state])
         success = False
-        for time in range(200):
+        # i = 0
+        while True:
             # env.render()
+            # bb._turn = bb.BLACK
+            # for row in range(board_size):
+            #     for col in range(board_size):
+            #         if state[0][0][row][col] == 1:
+            #             bb._array[row][col] = bb.BLACK
+            #         elif state[0][1][row][col] == 1:
+            #             bb._array[row][col] = bb.WHITE
+            # for row in range(board_size):
+            #     for col in range(board_size):
+            #         if bb.count_liberties(row+1, col+1) == 0:
+            #             state[0][2][row][col] = 0
+            for move in range(action_size):
+                try:
+                    env.state.act(move)
+                except pachi_py.IllegalMove:
+                    x, y = int(move/board_size), (move-(int(move/board_size)*board_size))
+                    state[0][2][x][y] = 0
             action = agent.act(state)
             # actions = np.argmax(action)+1
             next_state, reward, done, _, isillegal = env.step(action)
@@ -112,6 +147,7 @@ if __name__ == "__main__":
             agent.remember(state, action, reward, next_state, done)
             state = next_state
             if done:
+                bb = Board(board_size)
                 env.render()
                 print("episode: {}/{}, action: ({},{}), e: {:.2}, illegal: {}"
                       .format(e+1, emax,
@@ -119,8 +155,6 @@ if __name__ == "__main__":
                               chr(action-(int(action/board_size)*board_size)+1+64),
                               agent.epsilon,
                               illegal))  # score == time
-                if time > 195:
-                    success = True
                 break
 
         if len(agent.memory) > batch_size:
