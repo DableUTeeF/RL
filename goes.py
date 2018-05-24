@@ -219,12 +219,12 @@ class GoEnv(gym.Env):
 
         # If already terminal, then don't do anything
         if self.done:
-            return self.state.board.encode(), 0., True, {'state': self.state}
+            return self.state.board.encode(), 0., True, {'state': self.state}, 0.
 
         # If resigned, then we're done
         if action == _resign_action(self.board_size):
             self.done = True
-            return self.state.board.encode(), -1., True, {'state': self.state}
+            return self.state.board.encode(), -1., True, {'state': self.state}, 0.
 
         # Play
         prev_state = self.state
