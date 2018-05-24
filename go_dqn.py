@@ -3,15 +3,15 @@ from __future__ import print_function
 from keras import backend as K
 import random
 import numpy as np
-from go_env import GoEnv
+from goes import GoEnv
 from collections import deque
 from keras.models import Sequential
-from keras.layers import Dense, Conv2D, GlobalAveragePooling2D
+from keras.layers import Dense, Conv2D, GlobalAveragePooling2D, BatchNormalization, Activation
 from keras.optimizers import Adam
 
 
-def sigmoid7(x):
-    return (K.sigmoid(x) * 7)+1
+def sigmoid1to7(x):
+    return int((K.sigmoid(x) * 6)+1)
 
 
 class DQNAgent:
@@ -28,20 +28,28 @@ class DQNAgent:
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
         model = Sequential()
-        model.add(Conv2D(32, 3, input_shape=self.state_size, activation='relu'))  # input dimension = #states
-        model.add(Conv2D(32, 3, activation='relu'))
+        model.add(Conv2D(32, 3, input_shape=self.state_size))  # input dimension = #states
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+        model.add(Conv2D(64, 3))
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
+        model.add(Conv2D(128, 3))
+        model.add(BatchNormalization())
+        model.add(Activation('relu'))
         model.add(GlobalAveragePooling2D())
-        model.add(Dense(self.action_size, activation=sigmoid7))  # output nodes = #action
-        model.compile(loss='mse', optimizer=Adam(lr=1e-2, decay=1e-5))
+        model.add(Dense(self.action_size, activation='softmax'))  # output nodes = #action
+        model.compile(loss='categorical_crossentropy',
+                      optimizer=Adam(lr=1e-2, decay=1e-5))
 
         print(model.summary())
         return model
 
     def act(self, state):
         if np.random.rand() <= self.epsilon:  # another method to explore/exploit
-            return random.randrange(1, self.action_size), random.randrange(1, self.action_size)
+            return random.randrange(1, self.action_size)
         act_values = self.model.predict(state)
-        return np.argmax(act_values[0]), np.argmax(act_values[1])
+        return np.argmax(act_values)
 
     def remember(self, state, action, reward, next_state, done):  # done==True if this is the ending move
         self.memory.append((state, action, reward, next_state, done))
@@ -62,31 +70,42 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    env = GoEnv(7)
-    state_size = env.state_size
-    action_size = env.action_size
+    board_size = 19
+    env = GoEnv(player_color='black',
+                opponent='pachi:uct:_2400',
+                observation_type='image3c',
+                illegal_move_mode='lose',
+                board_size=board_size)
+    state_size = (board_size, board_size, 3)
+    action_size = board_size**2
     print("{} actions, {}-dim state".format(action_size, state_size))
-
     agent = DQNAgent(state_size, action_size)
     batch_size = 32
 
     emax = 5000
     for e in range(emax):
         state = env.reset()
-        state = np.reshape(state, (1, state_size[0], state_size[1], 2))
+        state = np.rollaxis(state, 0, 3)
+        state = np.array([state])
 
         success = False
         for time in range(200):
-            env.render()
+            # env.render()
             action = agent.act(state)
+            # actions = np.argmax(action)+1
             next_state, reward, done, _ = env.step(action)
             # reward = reward if not done else -10
-            next_state = np.reshape(next_state, (1, state_size[0], state_size[1], 2))
+            next_state = np.rollaxis(next_state, 0, 3)
+            next_state = np.array([next_state])
             agent.remember(state, action, reward, next_state, done)
             state = next_state
             if done:
-                print("episode: {}/{}, score: {}, e: {:.2}"
-                      .format(e, emax, time, agent.epsilon))  # score == time
+                env.render()
+                print("episode: {}/{}, action: ({},{}), e: {:.2}"
+                      .format(e, emax,
+                              19 - int(action/19),
+                              chr(action-(int(action/19)*19)+1+64),
+                              agent.epsilon))  # score == time
                 if time > 195:
                     success = True
                 break
