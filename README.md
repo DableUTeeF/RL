@@ -6,4 +6,4 @@ Openai Gym\
 `pip install gym`
 
 pachi\
-`pip install gym[pachi]`
+`pip install gym[all]`

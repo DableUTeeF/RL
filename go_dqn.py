@@ -72,7 +72,6 @@ class DQNAgent:
                             self.f = 1
                             return target
                     elif np.sum(state[0][2]) == 0:
-                        print('No valid move left')
                         return self.action_size
 
                     i += 1
@@ -94,17 +93,18 @@ class DQNAgent:
             X.append(state[0])
             Y.append(target_f[0])
         self.model.train_on_batch(np.array(X), np.array(Y))
-        if self.epsilon > self.epsilon_min and not self.iteration % 10:  # gradually change from explore to exploit
+        if self.epsilon > self.epsilon_min and not self.iteration % 1000:  # gradually change from explore to exploit
             self.epsilon *= self.epsilon_decay
         self.iteration += 1
 
 
 if __name__ == "__main__":
-    board_size = 19
+    board_size = 9
     bb = Board(board_size)
     bb._turn = bb.BLACK
     env = GoEnv(player_color='black',
-                opponent='pachi:uct:_2400',
+                # opponent='pachi:uct:_2400',
+                opponent='random',
                 observation_type='image3c',
                 illegal_move_mode='lose',
                 board_size=board_size)
@@ -114,8 +114,11 @@ if __name__ == "__main__":
     agent = DQNAgent(state_size, action_size)
     batch_size = 32
     illegal = 0
-    emax = 5000
-    for e in range(emax):
+    e = 0
+    while True:
+        e += 1
+        if e == 50000:
+            env.opponent = 'pachi:uct:_2400'
         state = env.reset()
         agent.f = 0
         # state = np.rollaxis(state, 0, 3)
@@ -152,8 +155,8 @@ if __name__ == "__main__":
             state = next_state
             if done:
                 bb = Board(board_size)
-                print("episode: {}/{}, action: ({},{}), e: {:.2}, illegal: {}"
-                      .format(e+1, emax,
+                print("episode: {}, action: ({},{}), e: {:.2}, illegal: {}"
+                      .format(e+1,
                               board_size - int(action/board_size),
                               chr(action-(int(action/board_size)*board_size)+1+64),
                               agent.epsilon,
@@ -169,5 +172,5 @@ if __name__ == "__main__":
         else:
             success_count = 0
         if success_count > 100:
-            print('Cartpole-v0 SOLVED!!!')
+            print('SOLVED!!!')
             break

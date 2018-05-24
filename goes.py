@@ -158,7 +158,7 @@ class GoEnv(gym.Env):
 
         self.opponent_policy = None
         self.opponent = opponent
-        self.np_random = None
+        self.np_random = np.random
         assert observation_type in ['image3c']
         self.observation_type = observation_type
 
