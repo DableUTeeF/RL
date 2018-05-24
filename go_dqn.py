@@ -6,10 +6,15 @@ import numpy as np
 from goes import GoEnv
 from collections import deque
 from keras.models import Sequential
-from keras.layers import Dense, Conv2D, GlobalAveragePooling2D, BatchNormalization, Activation
+from keras.layers import Dense, Conv2D, Flatten, BatchNormalization, Activation
 from keras.optimizers import Adam, SGD
 
 K.set_image_data_format('channels_first')
+
+# todo: 1). Point out where is legal move on explore stage
+# todo: 2). Should I use single Conv2D with large kernel
+# todo: 3). What to do with 3rd plane(available move) that contains some illegal move
+# todo: 4). I haven't use trained model as opponent yet
 
 
 def sigmoid1to7(x):
@@ -31,13 +36,10 @@ class DQNAgent:
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
         model = Sequential()
-        model.add(Conv2D(32, 3, input_shape=self.state_size))  # input dimension = #states
+        model.add(Conv2D(512, 5, input_shape=self.state_size))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Conv2D(32, 3))
-        model.add(BatchNormalization())
-        model.add(Activation('relu'))
-        model.add(GlobalAveragePooling2D())
+        model.add(Flatten())
         model.add(Dense(self.action_size, activation='sigmoid'))  # output nodes = #action
         model.compile(loss='binary_crossentropy',
                       optimizer=SGD(lr=1e-2, decay=1e-5, momentum=0.9))
@@ -46,18 +48,18 @@ class DQNAgent:
         return model
 
     def act(self, state):
-        if np.random.rand() <= self.epsilon:  # another method to explore/exploit
-            return random.randrange(1, self.action_size)
-        # if np.random.rand() <= self.epsilon:  # another method to explore/exploit
-        #     if np.random.rand() <= 1:
-        #         board_size = int(self.action_size**0.5)
-        #         while True:
-        #             target = random.randrange(1, self.action_size)
-        #             x, y = int(target/board_size), (target-(int(target/board_size)*board_size))
-        #             if state[0][2][x][y] == 1:
-        #                 return target
-        #     else:
-        #         return random.randrange(1, self.action_size)
+        # if np.random.rand() <= self.epsilon:
+        #     return random.randrange(1, self.action_size)
+        if np.random.rand() <= self.epsilon:
+            if np.random.rand() <= 1:
+                board_size = int(self.action_size**0.5)
+                while True:
+                    target = random.randrange(1, self.action_size)
+                    x, y = int(target/board_size), (target-(int(target/board_size)*board_size))
+                    if state[0][2][x][y] == 1:
+                        return target
+            else:
+                return random.randrange(1, self.action_size)
         act_values = self.model.predict(state)
         return np.argmax(act_values)
 
@@ -80,7 +82,7 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    board_size = 9
+    board_size = 7
     env = GoEnv(player_color='black',
                 opponent='pachi:uct:_2400',
                 observation_type='image3c',
