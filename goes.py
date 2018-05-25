@@ -41,6 +41,8 @@ def _action_to_coord(board, a):
     """Converts actions to Pachi coordinates"""
     if a == _pass_action(board.size): return pachi_py.PASS_COORD
     if a == _resign_action(board.size): return pachi_py.RESIGN_COORD
+    if a is None:
+        pass
     return board.ij_to_coord(a // board.size, a % board.size)
 
 
@@ -89,6 +91,32 @@ def make_random_policy(np_random):
     return random_policy
 
 
+def make_dl_policy(dl_model):
+    def random_policy(curr_state, prev_state, prev_action):
+        b = curr_state.board
+        legal_coords = b.get_legal_coords(curr_state.color)
+        l_coords = []
+        state = b.encode()
+        state[2] = np.zeros((state.shape[-1], state.shape[-1]))
+        for cord in legal_coords:
+            if cord != -1 and cord != state.shape[-1] * state.shape[-1]:
+                legal_coord = _coord_to_action(b, cord)
+                l_coords.append(legal_coord)
+                x, y = int(legal_coord / state.shape[-1]), (legal_coord - (int(legal_coord / state.shape[-1]) * state.shape[-1]))
+                state[2][x][y] = 1
+        b, w, s = state
+        state = np.array([[w, b, s]])
+        prd = dl_model.predict(state)
+        srt = np.argsort(prd[0])
+        if not l_coords:
+            return state.shape[-1]**2
+        for i in range(1, len(srt) + 1):
+            if srt[i * -1] in l_coords:
+                return srt[i * -1]
+
+    return random_policy
+
+
 def make_pachi_policy(board, engine_type='uct', threads=1, pachi_timestr=''):
     engine = pachi_py.PyPachiEngine(board, engine_type, six.b('threads=%d' % threads))
 
@@ -118,7 +146,8 @@ def _play(black_policy_fn, white_policy_fn, board_size=19):
     curr_state = GoState(pachi_py.CreateBoard(board_size), pachi_py.BLACK)
 
     while not curr_state.board.is_terminal:
-        a = (black_policy_fn if curr_state.color == pachi_py.BLACK else white_policy_fn)(curr_state, prev_state, prev_action)
+        a = (black_policy_fn if curr_state.color == pachi_py.BLACK else white_policy_fn)(curr_state, prev_state,
+                                                                                         prev_action)
         next_state = curr_state.act(a)
         moves.append((curr_state, a, next_state))
 
@@ -172,7 +201,7 @@ class GoEnv(gym.Env):
         self.observation_space = spaces.Box(np.zeros(shape), np.ones(shape))
         # One action for each board position, pass, and resign
         self.action_space = spaces.Discrete(self.board_size ** 2 + 2)
-
+        self.dl_model = None
         # Filled in by _reset()
         self.state = None
         self.done = True
@@ -262,7 +291,7 @@ class GoEnv(gym.Env):
         white_wins = self.state.board.official_score > 0
         black_wins = self.state.board.official_score < 0
         player_wins = (white_wins and self.player_color == pachi_py.WHITE) or (
-                black_wins and self.player_color == pachi_py.BLACK)
+            black_wins and self.player_color == pachi_py.BLACK)
         reward = 1. if player_wins else -1. if (white_wins or black_wins) else 0.
         return self.state.board.encode(), reward, True, {'state': self.state}, .0
 
@@ -282,5 +311,7 @@ class GoEnv(gym.Env):
         elif self.opponent == 'pachi:uct:_2400':
             self.opponent_policy = make_pachi_policy(board=board, engine_type=six.b('uct'),
                                                      pachi_timestr=six.b('_2400'))  # TODO: strength as argument
+        elif self.opponent == 'dl':
+            self.opponent_policy = make_dl_policy(self.dl_model)
         else:
             raise error.Error('Unrecognized opponent policy {}'.format(self.opponent))

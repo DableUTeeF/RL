@@ -10,11 +10,13 @@ from keras.layers import Dense, Conv2D, Flatten, BatchNormalization, Activation,
 from keras.optimizers import Adam, SGD
 import pachi_py
 K.set_image_data_format('channels_first')
+from copy import deepcopy
 
 # todo: 1). Point out where is legal move on explore stage
 # todo: 2). Should I use single Conv2D with large kernel
 # todo: 3). What to do with 3rd plane(available move) that contains some illegal move
 # todo: 4). I haven't use trained model as opponent yet
+# todo: 5). Add AI model to opponent move predict(but I train with black, will it works)
 
 
 class DQNAgent:
@@ -61,9 +63,9 @@ class DQNAgent:
         # if np.random.rand() <= self.epsilon:
         #     return random.randrange(self.action_size)
         i = 0
+        board_size = int(self.action_size ** 0.5)
         if np.random.rand() <= self.epsilon:
             if np.random.rand() <= 1:
-                board_size = int(self.action_size**0.5)
                 while True:
                     target = random.randrange(self.action_size)
                     x, y = int(target/board_size), (target-(int(target/board_size)*board_size))
@@ -78,7 +80,19 @@ class DQNAgent:
             else:
                 return random.randrange(1, self.action_size)
         act_values = self.model.predict(state)
-        return np.argmax(act_values)
+
+        for i in range(self.action_size+1):
+            srt = np.argsort(act_values[0])
+            target = srt[-1*i]
+            x, y = int(target / board_size), (target - (int(target / board_size) * board_size))
+            if target == self.action_size:
+                return self.action_size
+            if state[0][2][x][y] == 1:
+                if not (self.f == 0 and x == y == int(board_size / 2)):
+                    self.f = 1
+                    return target
+            elif np.sum(state[0][2]) == 0:
+                return self.action_size
 
     def remember(self, state, action, reward, next_state, done):  # done==True if this is the ending move
         self.memory.append((state, action, reward, next_state, done))
@@ -99,7 +113,7 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    board_size = 9
+    board_size = 7
     bb = Board(board_size)
     bb._turn = bb.BLACK
     env = GoEnv(player_color='black',
@@ -117,8 +131,14 @@ if __name__ == "__main__":
     e = 0
     while True:
         e += 1
-        if e == 50000:
-            env.opponent = 'pachi:uct:_2400'
+
+        if e == 100000:
+            env.dl_model = agent.model
+            env.dl_model.load_weights('old.h5')
+            env.opponent = 'dl'
+        elif e > 100000:
+            env.dl_model.load_weights('old.h5')
+
         state = env.reset()
         agent.f = 0
         # state = np.rollaxis(state, 0, 3)
@@ -165,6 +185,7 @@ if __name__ == "__main__":
                 break
 
         if len(agent.memory) > batch_size:
+            agent.model.save_weights('old.h5')
             agent.replay(batch_size)
 
         if success:
