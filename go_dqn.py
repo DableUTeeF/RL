@@ -11,6 +11,7 @@ from keras.optimizers import Adam, SGD
 import pachi_py
 K.set_image_data_format('channels_first')
 import subprocess
+from datetime import datetime
 
 # todo: 1). Point out where is legal move on explore stage
 # todo: 2). Should I use single Conv2D with large kernel
@@ -25,7 +26,7 @@ class DQNAgent:
         self.action_size = action_size
         self.memory = deque(maxlen=2000)
         self.gamma = 0.8  # discount rate
-        self.epsilon = 0.95  # exploration rate
+        self.epsilon = 0.5  # exploration rate
         self.epsilon_min = 0.25
         self.epsilon_decay = 0.995
         self.board_size = int(self.action_size**0.5)
@@ -57,7 +58,7 @@ class DQNAgent:
         model.add(Reshape((self.board_size**2*64,)))
         model.add(Dense(self.action_size+1, activation='softmax'))
         model.compile(loss='categorical_crossentropy',
-                      optimizer=Adam(lr=1e-4, decay=1e-6))
+                      optimizer=Adam(lr=1e-2, decay=1e-6))
         # model.add(Dense(self.action_size+1, activation='sigmoid'))
         # model.compile(loss='binary_crossentropy',
         #               optimizer=Adam(lr=1e-2, decay=1e-6))
@@ -68,7 +69,6 @@ class DQNAgent:
     def act(self, state):
         # if np.random.rand() <= self.epsilon:
         #     return random.randrange(self.action_size)
-        i = 0
         board_size = int(self.action_size ** 0.5)
         if np.sum(state[0][2]) == 0:
             return board_size ** 2 + 1
@@ -83,7 +83,6 @@ class DQNAgent:
                 elif np.sum(state[0][2]) == 0:
                     return self.action_size
 
-                i += 1
         act_values = self.model.predict(state)
         srt = np.argsort(act_values[0])
 
@@ -117,12 +116,12 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    board_size = 19
+    board_size = 7
     bb = Board(board_size)
     bb._turn = bb.BLACK
     env = GoEnv(player_color='black',
-                opponent='pachi:uct:_2400',
-                # opponent='random',
+                # opponent='pachi:uct:_2400',
+                opponent='random',
                 observation_type='image3c',
                 illegal_move_mode='lose',
                 board_size=board_size)
@@ -137,19 +136,18 @@ if __name__ == "__main__":
     batch_size = 32
     illegal = 0
     e = 0
-    win = 0
-    lose = 0
+    dlwin = [0, 0]
+    pachiwin = [0, 0]
+    with open('log-{}.txt'.format(board_size), 'a') as wr:
+        wr.write(datetime.now().__str__() + '\n\n')
     while True:
-        e += 1
-        if e == 500000:
+        if e % 100 == 0:
             env.opponent = 'pachi:uct:_2400'
-        if e == 2:
+        else:
             env.dl_model = agent.model
             env.dl_model.load_weights('old-{}.h5'.format(board_size))
             env.opponent = 'dl'
-        elif e > 2:
-            env.dl_model = agent.model
-            env.dl_model.load_weights('old-{}.h5'.format(board_size))
+        e += 1
 
         state = env.reset()
         agent.f = 0
@@ -176,14 +174,17 @@ if __name__ == "__main__":
                     state[0][2][x][y] = 0
             action = agent.act(state)
             subprocess.check_call('clear', shell=True)
-            print("episode: {}, action: ({},{}), win: {}/{}, e: {:.2}, illegal: {}"
-                .format(e,
-                        board_size - int(action / board_size),
-                        chr(action - (int(action / board_size) * board_size) + 1 + 64),
-                        int(win), int(lose),
-                        agent.epsilon,
-                        illegal))
+            print("episode: {}, dl_win: {}/{}, pachi_win: {}/{}, e: {:.2}, illegal: {}"
+                  .format(e,
+                          int(dlwin[0]), int(dlwin[1]),
+                          int(pachiwin[0]), int(pachiwin[1]),
+                          agent.epsilon,
+                          # board_size - int(action/board_size),
+                          # chr(action-(int(action/board_size)*board_size)+1+64),
+                          illegal))
             env.render()
+            with open('log-{}.txt'.format(board_size), 'a') as wr:
+                wr.write(repr(env.state) + '\n\n')
             actions = np.argmax(action)+1
             next_state, reward, done, _, isillegal = env.step(action)
             illegal += isillegal
@@ -195,19 +196,25 @@ if __name__ == "__main__":
             if reward == -1:
                 reward = 0
             elif reward == 1:
-                win += reward
+                if env.opponent == 'dl':
+                    dlwin[0] += reward
+                else:
+                    pachiwin[0] += reward
             if done:
                 if reward == 0:
-                    lose += 1
+                    if env.opponent == 'dl':
+                        dlwin[1] += 1
+                    else:
+                        pachiwin[1] += 1
                 bb = Board(board_size)
-                print("episode: {}, action: ({},{}), win: {}/{}, e: {:.2}, illegal: {}"
-                      .format(e,
-                              board_size - int(action/board_size),
-                              chr(action-(int(action/board_size)*board_size)+1+64),
-                              int(win), int(lose),
-                              agent.epsilon,
-                              illegal))
-                env.render()
+                # print("episode: {}, action: ({},{}), win: {}/{}, e: {:.2}, illegal: {}"
+                #       .format(e,
+                #               board_size - int(action/board_size),
+                #               chr(action-(int(action/board_size)*board_size)+1+64),
+                #               int(win), int(lose),
+                #               agent.epsilon,
+                #               illegal))
+                # env.render()
                 break
 
         if len(agent.memory) > batch_size:
