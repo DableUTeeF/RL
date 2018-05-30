@@ -1,4 +1,4 @@
-from __future__ import print_function
+# from __future__ import print_function
 from go.board import Board
 from keras import backend as K
 import random
@@ -23,7 +23,7 @@ class DQNAgent:
     def __init__(self, state_size, action_size):
         self.state_size = state_size
         self.action_size = action_size
-        self.memory = deque(maxlen=1000)
+        self.memory = deque(maxlen=2000)
         self.gamma = 0.8  # discount rate
         self.epsilon = 1.  # exploration rate
         self.epsilon_min = 0.25
@@ -36,25 +36,25 @@ class DQNAgent:
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
         model = Sequential()
-        model.add(Conv2D(32, 3, input_shape=self.state_size, padding='valid'))  # input dimension = #states
+        model.add(Conv2D(32, 3, input_shape=self.state_size, padding='same'))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Conv2D(64, 3, padding='valid'))  # input dimension = #states
+        model.add(Conv2D(64, 3, padding='same'))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Conv2D(64, 1, padding='valid'))  # input dimension = #states
+        model.add(Conv2D(64, 1, padding='same'))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Conv2D(128, 3, padding='valid'))  # input dimension = #states
+        model.add(Conv2D(128, 3, padding='same'))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Conv2D(128, 1, padding='valid'))  # input dimension = #states
+        model.add(Conv2D(128, 1, padding='same'))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
         model.add(Conv2D(64, 1, padding='same'))  # output nodes = #action
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Reshape(((self.board_size-6)**2*64,)))
+        model.add(Reshape((self.board_size**2*64,)))
         model.add(Dense(self.action_size+1, activation='softmax'))
         model.compile(loss='categorical_crossentropy',
                       optimizer=Adam(lr=1e-4, decay=1e-6))
@@ -83,9 +83,9 @@ class DQNAgent:
 
                 i += 1
         act_values = self.model.predict(state)
+        srt = np.argsort(act_values[0])
 
         for i in range(self.action_size+1):
-            srt = np.argsort(act_values[0])
             target = srt[-1*i]
             x, y = int(target / board_size), (target - (int(target / board_size) * board_size))
             if target == self.action_size:
@@ -115,12 +115,12 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    board_size = 7
+    board_size = 15
     bb = Board(board_size)
     bb._turn = bb.BLACK
     env = GoEnv(player_color='black',
-                opponent='pachi:uct:_2400',
-                # opponent='random',
+                # opponent='pachi:uct:_2400',
+                opponent='random',
                 observation_type='image3c',
                 illegal_move_mode='lose',
                 board_size=board_size)
@@ -155,11 +155,7 @@ if __name__ == "__main__":
         # state = np.rollaxis(state, 0, 3)
         state = np.array([state])
         success = False
-        i = 0
-        while True:
-            i += 1
-            if not i % 1000:
-                print('_')
+        for i in range(2000):
             # env.render()
             # bb._turn = bb.BLACK
             # for row in range(board_size):
@@ -189,9 +185,9 @@ if __name__ == "__main__":
             state = next_state
             if reward == -1:
                 reward = 0
-            if reward == 1:
+            elif reward == 1:
                 win += reward
-            if done or i > 3000:
+            if done:
                 if reward == 0:
                     lose += 1
                 bb = Board(board_size)
@@ -208,3 +204,4 @@ if __name__ == "__main__":
         if len(agent.memory) > batch_size:
             agent.model.save_weights('old-{}.h5'.format(board_size))
             agent.replay(batch_size)
+            agent.memory = deque(maxlen=5000)
