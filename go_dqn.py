@@ -10,7 +10,7 @@ from keras.layers import Dense, Conv2D, Flatten, BatchNormalization, Activation,
 from keras.optimizers import Adam, SGD
 import pachi_py
 K.set_image_data_format('channels_first')
-import sys
+import subprocess
 
 # todo: 1). Point out where is legal move on explore stage
 # todo: 2). Should I use single Conv2D with large kernel
@@ -25,7 +25,7 @@ class DQNAgent:
         self.action_size = action_size
         self.memory = deque(maxlen=2000)
         self.gamma = 0.8  # discount rate
-        self.epsilon = 1.  # exploration rate
+        self.epsilon = 0.95  # exploration rate
         self.epsilon_min = 0.25
         self.epsilon_decay = 0.995
         self.board_size = int(self.action_size**0.5)
@@ -70,6 +70,8 @@ class DQNAgent:
         #     return random.randrange(self.action_size)
         i = 0
         board_size = int(self.action_size ** 0.5)
+        if np.sum(state[0][2]) == 0:
+            return board_size ** 2 + 1
         if np.random.rand() <= self.epsilon:
             for i in range(self.action_size):
                 target = random.randrange(self.action_size-1)
@@ -115,12 +117,12 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    board_size = 15
+    board_size = 19
     bb = Board(board_size)
     bb._turn = bb.BLACK
     env = GoEnv(player_color='black',
-                # opponent='pachi:uct:_2400',
-                opponent='random',
+                opponent='pachi:uct:_2400',
+                # opponent='random',
                 observation_type='image3c',
                 illegal_move_mode='lose',
                 board_size=board_size)
@@ -137,16 +139,15 @@ if __name__ == "__main__":
     e = 0
     win = 0
     lose = 0
-    draw = 0
     while True:
         e += 1
         if e == 500000:
             env.opponent = 'pachi:uct:_2400'
-        if e == 10000:
+        if e == 2:
             env.dl_model = agent.model
             env.dl_model.load_weights('old-{}.h5'.format(board_size))
             env.opponent = 'dl'
-        elif e > 10000:
+        elif e > 2:
             env.dl_model = agent.model
             env.dl_model.load_weights('old-{}.h5'.format(board_size))
 
@@ -156,7 +157,6 @@ if __name__ == "__main__":
         state = np.array([state])
         success = False
         for i in range(2000):
-            # env.render()
             # bb._turn = bb.BLACK
             # for row in range(board_size):
             #     for col in range(board_size):
@@ -175,13 +175,22 @@ if __name__ == "__main__":
                     x, y = int(move/board_size), (move-(int(move/board_size)*board_size))
                     state[0][2][x][y] = 0
             action = agent.act(state)
-            # actions = np.argmax(action)+1
+            subprocess.check_call('clear', shell=True)
+            print("episode: {}, action: ({},{}), win: {}/{}, e: {:.2}, illegal: {}"
+                .format(e,
+                        board_size - int(action / board_size),
+                        chr(action - (int(action / board_size) * board_size) + 1 + 64),
+                        int(win), int(lose),
+                        agent.epsilon,
+                        illegal))
+            env.render()
+            actions = np.argmax(action)+1
             next_state, reward, done, _, isillegal = env.step(action)
             illegal += isillegal
             # reward = reward if not done else -10
             # next_state = np.rollaxis(next_state, 0, 3)
             next_state = np.array([next_state])
-            agent.remember(state, action, reward, next_state, done)
+            agent.remember(state, action-1, reward, next_state, done)
             state = next_state
             if reward == -1:
                 reward = 0
@@ -204,4 +213,3 @@ if __name__ == "__main__":
         if len(agent.memory) > batch_size:
             agent.model.save_weights('old-{}.h5'.format(board_size))
             agent.replay(batch_size)
-            agent.memory = deque(maxlen=5000)

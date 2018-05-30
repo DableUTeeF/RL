@@ -109,7 +109,7 @@ def make_dl_policy(dl_model):
         prd = dl_model.predict(state)
         srt = np.argsort(prd[0])
         if not l_coords:
-            return state.shape[-1]**2
+            return _resign_action(state.shape[-1])
         for i in range(len(srt)):
             if srt[i * -1] in l_coords and srt[i * -1] != state.shape[-1]**2:
                 return srt[i * -1]
