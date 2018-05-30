@@ -25,9 +25,10 @@ class DQNAgent:
         self.action_size = action_size
         self.memory = deque(maxlen=1000)
         self.gamma = 0.8  # discount rate
-        self.epsilon = 0.9  # exploration rate
+        self.epsilon = 1.  # exploration rate
         self.epsilon_min = 0.25
         self.epsilon_decay = 0.995
+        self.board_size = int(self.action_size**0.5)
         self.model = self._build_model()
         self.iteration = 0
         self.f = 0
@@ -35,37 +36,25 @@ class DQNAgent:
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
         model = Sequential()
-        model.add(Conv2D(32, 3, input_shape=self.state_size, padding='same'))  # input dimension = #states
+        model.add(Conv2D(32, 3, input_shape=self.state_size, padding='valid'))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Conv2D(64, 3, padding='same'))  # input dimension = #states
+        model.add(Conv2D(64, 3, padding='valid'))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Conv2D(64, 1, padding='same'))  # input dimension = #states
+        model.add(Conv2D(64, 1, padding='valid'))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Conv2D(128, 3, padding='same'))  # input dimension = #states
+        model.add(Conv2D(128, 3, padding='valid'))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Conv2D(128, 1, padding='same'))  # input dimension = #states
-        model.add(BatchNormalization())
-        model.add(Activation('relu'))
-        model.add(Conv2D(256, 3, padding='same'))  # input dimension = #states
-        model.add(BatchNormalization())
-        model.add(Activation('relu'))
-        model.add(Conv2D(256, 1, padding='same'))  # input dimension = #states
-        model.add(BatchNormalization())
-        model.add(Activation('relu'))
-        model.add(Conv2D(512, 3, padding='same'))  # input dimension = #states
-        model.add(BatchNormalization())
-        model.add(Activation('relu'))
-        model.add(Conv2D(512, 1, padding='same'))  # input dimension = #states
+        model.add(Conv2D(128, 1, padding='valid'))  # input dimension = #states
         model.add(BatchNormalization())
         model.add(Activation('relu'))
         model.add(Conv2D(64, 1, padding='same'))  # output nodes = #action
         model.add(BatchNormalization())
         model.add(Activation('relu'))
-        model.add(Reshape((self.action_size*64,)))
+        model.add(Reshape(((self.board_size-6)**2*64,)))
         model.add(Dense(self.action_size+1, activation='softmax'))
         model.compile(loss='categorical_crossentropy',
                       optimizer=Adam(lr=1e-4, decay=1e-6))
@@ -126,7 +115,7 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    board_size = 11
+    board_size = 7
     bb = Board(board_size)
     bb._turn = bb.BLACK
     env = GoEnv(player_color='black',
@@ -153,13 +142,13 @@ if __name__ == "__main__":
         e += 1
         if e == 500000:
             env.opponent = 'pachi:uct:_2400'
-        # if e == 10:
-        #     env.dl_model = agent.model
-            # env.dl_model.load_weights('old-{}.h5'.format(board_size))
-        #     env.opponent = 'dl'
-        # elif e > 10:
-        #     env.dl_model = agent.model
-            # env.dl_model.load_weights('old-{}.h5'.format(board_size))
+        if e == 10000:
+            env.dl_model = agent.model
+            env.dl_model.load_weights('old-{}.h5'.format(board_size))
+            env.opponent = 'dl'
+        elif e > 10000:
+            env.dl_model = agent.model
+            env.dl_model.load_weights('old-{}.h5'.format(board_size))
 
         state = env.reset()
         agent.f = 0
@@ -169,6 +158,8 @@ if __name__ == "__main__":
         i = 0
         while True:
             i += 1
+            if not i % 1000:
+                print('_')
             # env.render()
             # bb._turn = bb.BLACK
             # for row in range(board_size):
@@ -200,7 +191,7 @@ if __name__ == "__main__":
                 reward = 0
             if reward == 1:
                 win += reward
-            if done or i > 5000:
+            if done or i > 3000:
                 if reward == 0:
                     lose += 1
                 bb = Board(board_size)
