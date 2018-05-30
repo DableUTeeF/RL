@@ -116,7 +116,7 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    board_size = 7
+    board_size = 19
     bb = Board(board_size)
     bb._turn = bb.BLACK
     env = GoEnv(player_color='black',
@@ -138,6 +138,7 @@ if __name__ == "__main__":
     e = 0
     dlwin = [0, 0]
     pachiwin = [0, 0]
+    time = datetime.now().__str__()
     while True:
         if e % 100 == 0:
             env.opponent = 'pachi:uct:_2400'
@@ -181,7 +182,7 @@ if __name__ == "__main__":
                           # chr(action-(int(action/board_size)*board_size)+1+64),
                           illegal))
             env.render()
-            with open('log/log-{}-{}.txt'.format(board_size, datetime.now().__str__()), 'a') as wr:
+            with open('log/log-{}-{}.txt'.format(board_size, time), 'a') as wr:
                 wr.write(repr(env.state) + '\n\n')
             actions = np.argmax(action)+1
             next_state, reward, done, _, isillegal = env.step(action)
