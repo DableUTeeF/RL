@@ -1,5 +1,4 @@
 # from __future__ import print_function
-from go.board import Board
 from keras import backend as K
 import random
 import numpy as np
@@ -58,7 +57,7 @@ class DQNAgent:
         model.add(Reshape((self.board_size**2*64,)))
         model.add(Dense(self.action_size+1, activation='softmax'))
         model.compile(loss='categorical_crossentropy',
-                      optimizer=Adam(lr=1e-2, decay=1e-6))
+                      optimizer=Adam(lr=1e-4, decay=1e-6))
         # model.add(Dense(self.action_size+1, activation='sigmoid'))
         # model.compile(loss='binary_crossentropy',
         #               optimizer=Adam(lr=1e-2, decay=1e-6))
@@ -116,9 +115,7 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    board_size = 19
-    bb = Board(board_size)
-    bb._turn = bb.BLACK
+    board_size = 7
     env = GoEnv(player_color='black',
                 # opponent='pachi:uct:_2400',
                 opponent='random',
@@ -205,7 +202,6 @@ if __name__ == "__main__":
                         dlwin[1] += 1
                     else:
                         pachiwin[1] += 1
-                bb = Board(board_size)
                 # print("episode: {}, action: ({},{}), win: {}/{}, e: {:.2}, illegal: {}"
                 #       .format(e,
                 #               board_size - int(action/board_size),
